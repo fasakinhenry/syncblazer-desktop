@@ -79,6 +79,10 @@ jobs:
           # system-browser flow) — distinct from VITE_GOOGLE_CLIENT_ID above,
           # which is the website's "Web application" client.
           VITE_GOOGLE_DESKTOP_CLIENT_ID: ${{ vars.VITE_GOOGLE_DESKTOP_CLIENT_ID }}
+          # Read by src-tauri/src/oauth.rs's env!() at compile time — a
+          # real Secret (not a Variable): GitHub masks secrets in logs and
+          # never displays the value again once saved, unlike variables.
+          GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
         with:
           projectPath: desktop
           tagName: ${{ github.ref_name }}

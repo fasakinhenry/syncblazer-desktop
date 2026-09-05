@@ -94,6 +94,17 @@ struct TokenResponse {
     id_token: String,
 }
 
+// Google's token endpoint requires this even for a "Desktop app" type
+// client using PKCE — contrary to the pure OAuth-spec "public client"
+// model, Google's own implementation still validates a client_secret here.
+// Per Google's docs, this secret is explicitly NOT treated as confidential
+// for installed-app clients (unlike a website's) since it ships inside a
+// downloadable binary regardless — but it's still a required form field.
+// Baked in at COMPILE time (never appears in source or git history) via
+// the GOOGLE_DESKTOP_CLIENT_SECRET env var — see desktop/README.md for
+// where to set it, both for local builds and CI.
+const CLIENT_SECRET: &str = env!("GOOGLE_DESKTOP_CLIENT_SECRET");
+
 async fn exchange_code_for_id_token(
     client_id: &str,
     code: &str,
@@ -103,6 +114,7 @@ async fn exchange_code_for_id_token(
     let client = reqwest::Client::new();
     let params = [
         ("client_id", client_id),
+        ("client_secret", CLIENT_SECRET),
         ("code", code),
         ("code_verifier", verifier),
         ("redirect_uri", redirect_uri),

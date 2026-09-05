@@ -70,13 +70,23 @@ Unsigned installers work, but trigger OS warnings ("Unknown publisher" / "uniden
 
 ## Google sign-in
 
-Google's popup-based sign-in doesn't work inside an embedded webview (WebView2 blocks the cross-origin storage it needs, and Google generally distrusts embedded webviews for auth). So this app opens the real system browser instead, via [PKCE](https://datatracker.ietf.org/doc/html/rfc7636) — no client secret is stored or transmitted anywhere; see `src-tauri/src/oauth.rs`.
+Google's popup-based sign-in doesn't work inside an embedded webview (WebView2 blocks the cross-origin storage it needs, and Google generally distrusts embedded webviews for auth). So this app opens the real system browser instead, via [PKCE](https://datatracker.ietf.org/doc/html/rfc7636) — see `src-tauri/src/oauth.rs`.
 
-This needs its own **separate** Google OAuth client (type: **Desktop app**, not Web application) — create one at [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials) in the same project as the website's existing client. Only the Client ID matters (not the secret Google also generates — it's unused by this flow).
+This needs its own **separate** Google OAuth client (type: **Desktop app**, not Web application) — create one at [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials) in the same project as the website's existing client.
 
-To test locally: add `VITE_GOOGLE_DESKTOP_CLIENT_ID=<that client id>` to `../frontend/.env`, and `GOOGLE_DESKTOP_CLIENT_ID=<same id>` to `../backend/.env`, then restart both `cargo tauri dev` and the backend.
+**About the client secret**: despite using PKCE, Google's token endpoint still requires the client secret in the token exchange for "Desktop app" type clients (confirmed empirically — it rejects the request with `client_secret is missing` otherwise). Per Google's own docs, this secret is explicitly *not* treated as confidential for installed-app clients the way a website's is — it ships inside a downloadable binary regardless, so there's no real way to keep it hidden from someone who wants to extract it. It's still handled as a proper secret here (a GitHub *Secret*, not a *Variable* — masked in logs, never displayed again after saving), compiled in at build time rather than committed to source.
 
-For release builds: set the `VITE_GOOGLE_DESKTOP_CLIENT_ID` repository variable here (same place as `VITE_API_URL` etc.), and `GOOGLE_DESKTOP_CLIENT_ID` on the backend's production host (Render).
+To test locally, in **PowerShell**, before running `cargo tauri dev` or `cargo tauri build` (env vars set this way only last for that terminal session — for something persistent, use System Properties → Environment Variables instead):
+```powershell
+$env:GOOGLE_DESKTOP_CLIENT_SECRET = "<the secret Google showed you when you created the Desktop app client>"
+cargo tauri dev
+```
+Also add `VITE_GOOGLE_DESKTOP_CLIENT_ID=<that client's ID>` to `../frontend/.env`, and `GOOGLE_DESKTOP_CLIENT_ID=<same ID>` to `../backend/.env`, then restart the backend too.
+
+For release builds (this repo's GitHub Actions):
+1. **Settings → Secrets and variables → Actions → Secrets tab** (not Variables) → New repository secret → name `GOOGLE_DESKTOP_CLIENT_SECRET`, paste the value.
+2. `VITE_GOOGLE_DESKTOP_CLIENT_ID` stays a Variable (same place as `VITE_API_URL` etc.) — it's the Client ID, not the secret, and is safe there.
+3. Set `GOOGLE_DESKTOP_CLIENT_ID` on the backend's production host (Render) too.
 
 ## Known limitation worth knowing about
 
