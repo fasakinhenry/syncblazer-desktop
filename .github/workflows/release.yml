@@ -14,6 +14,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write # tauri-action needs this to create the GitHub Release
+
 jobs:
   release:
     strategy:
