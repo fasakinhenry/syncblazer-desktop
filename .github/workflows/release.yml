@@ -1,0 +1,73 @@
+name: release
+
+# Builds and publishes installers to GitHub Releases whenever a version tag
+# (v0.1.0, v0.1.1, ...) is pushed. Checks out the sibling `frontend` repo
+# alongside this one first, since tauri.conf.json's build config points at
+# ../../frontend — there's no root repo tying the two together, so CI has to
+# assemble that layout itself.
+#
+# Code signing (Windows/macOS) is deliberately NOT configured here — that
+# needs real certificates/secrets set up first (see README.md). Unsigned
+# builds still work, they just trigger an OS warning on first run.
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "macos-latest"
+            args: "--target aarch64-apple-darwin"
+          - platform: "macos-latest"
+            args: "--target x86_64-apple-darwin"
+          - platform: "ubuntu-22.04"
+            args: ""
+          - platform: "windows-latest"
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout desktop
+        uses: actions/checkout@v4
+        with:
+          path: desktop
+
+      - name: Checkout frontend (sibling repo — no monorepo, checked out manually)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.FRONTEND_REPO }}
+          path: frontend
+
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: bun install
+
+      - name: Build and release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: "SyncBlaze Desktop ${{ github.ref_name }}"
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}

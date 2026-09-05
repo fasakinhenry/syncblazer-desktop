@@ -1,0 +1,13 @@
+# Rust
+/src-tauri/target/
+
+# Tauri-generated
+/src-tauri/gen/
+
+# The frontend build this app bundles — it's built from the sibling
+# ../frontend repo, never committed here.
+/src-tauri/../../frontend/dist
+
+# OS
+.DS_Store
+Thumbs.db
