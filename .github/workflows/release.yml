@@ -3,7 +3,7 @@ name: release
 # Builds and publishes installers to GitHub Releases whenever a version tag
 # (v0.1.0, v0.1.1, ...) is pushed. Checks out the sibling `frontend` repo
 # alongside this one first, since tauri.conf.json's build config points at
-# ../../frontend — there's no root repo tying the two together, so CI has to
+# ../frontend — there's no root repo tying the two together, so CI has to
 # assemble that layout itself.
 #
 # Code signing (Windows/macOS) is deliberately NOT configured here — that
@@ -43,7 +43,7 @@ jobs:
           path: frontend
 
       - name: Install Rust
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
