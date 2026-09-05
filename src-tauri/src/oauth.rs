@@ -20,29 +20,45 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use rand::Rng;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{oneshot, Mutex};
 
 pub type PendingSignIn = oneshot::Sender<Result<String, String>>;
 
+// Keyed by a random `state` value unique to each sign-in attempt (the OAuth
+// spec's own mechanism for this exact problem) rather than a single "one
+// attempt at a time" slot. A single shared slot meant ANY mismatch between
+// when a callback arrives and which attempt is "current" — a duplicate
+// request, a second click, a leftover attempt from earlier — silently
+// discarded a perfectly valid authorization code with no way to recover.
 #[derive(Clone, Default)]
 pub struct OAuthState {
-    pending: Arc<Mutex<Option<PendingSignIn>>>,
+    pending: Arc<Mutex<HashMap<String, PendingSignIn>>>,
 }
 
 #[derive(Deserialize)]
 pub struct CallbackQuery {
     code: Option<String>,
     error: Option<String>,
+    state: Option<String>,
 }
 
 const SUCCESS_PAGE: &str = "<!doctype html><html><body style=\"font-family:system-ui,sans-serif;text-align:center;padding-top:4rem;color:#0f172a\"><h2>You're signed in.</h2><p>You can close this tab and return to SyncBlaze.</p></body></html>";
 const ERROR_PAGE: &str = "<!doctype html><html><body style=\"font-family:system-ui,sans-serif;text-align:center;padding-top:4rem;color:#0f172a\"><h2>Sign-in didn't complete.</h2><p>You can close this tab and try again in SyncBlaze.</p></body></html>";
 
 pub async fn oauth_callback_handler(Query(q): Query<CallbackQuery>, State(state): State<OAuthState>) -> Html<&'static str> {
-    let mut pending = state.pending.lock().await;
-    let Some(tx) = pending.take() else {
-        // No sign-in was actually in flight (stale/duplicate hit) — nothing to deliver.
+    let Some(request_state) = q.state else {
+        return Html(ERROR_PAGE);
+    };
+
+    let tx = {
+        let mut pending = state.pending.lock().await;
+        pending.remove(&request_state)
+    };
+    let Some(tx) = tx else {
+        // No attempt matching this exact state is waiting — stale/duplicate
+        // hit. Whatever attempt IS actually in flight (if any) is untouched.
         return Html(ERROR_PAGE);
     };
 
@@ -120,19 +136,18 @@ pub async fn start_google_signin(
     let verifier = generate_code_verifier();
     let challenge = code_challenge_from_verifier(&verifier);
     let redirect_uri = format!("http://127.0.0.1:{}/oauth/callback", crate::LAN_RELAY_PORT);
+    let state_token = generate_code_verifier(); // reused as a random nonce — same shape requirements
 
     let (tx, rx) = oneshot::channel();
-    {
-        let mut pending = oauth_state.pending.lock().await;
-        *pending = Some(tx);
-    }
+    oauth_state.pending.lock().await.insert(state_token.clone(), tx);
 
     let auth_url = format!(
-        "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri={}&response_type=code&scope={}&code_challenge={}&code_challenge_method=S256&prompt=select_account",
+        "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri={}&response_type=code&scope={}&code_challenge={}&code_challenge_method=S256&state={}&prompt=select_account",
         urlencoding::encode(&client_id),
         urlencoding::encode(&redirect_uri),
         urlencoding::encode("openid email profile"),
-        challenge
+        challenge,
+        urlencoding::encode(&state_token)
     );
 
     app.opener()
@@ -145,8 +160,9 @@ pub async fn start_google_signin(
         Ok(Err(_)) => return Err("Sign-in was cancelled".to_string()),
         Err(_) => {
             // Nobody's coming back for this attempt — clear it so a stale
-            // sender doesn't linger and swallow a future, unrelated attempt.
-            oauth_state.pending.lock().await.take();
+            // sender doesn't linger forever, without touching any other
+            // attempt that might be in flight under its own state token.
+            oauth_state.pending.lock().await.remove(&state_token);
             return Err("Sign-in timed out. Please try again.".to_string());
         }
     };
