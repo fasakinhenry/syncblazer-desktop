@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "SyncBlaze",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "identifier": "com.syncblaze.desktop",
   "build": {
     "beforeDevCommand": "bun run --cwd ../frontend dev",
