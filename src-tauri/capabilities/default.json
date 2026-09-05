@@ -3,6 +3,6 @@
   "identifier": "default",
   "description": "Default capability for the main SyncBlaze window",
   "windows": ["main"],
-  "permissions": ["core:default", "core:window:allow-show", "core:window:allow-set-focus"],
-  "_comment": "App-level #[tauri::command] functions registered via invoke_handler (get_lan_info) are callable under core:default in current Tauri v2 releases. If a future version tightens this, add its specific permission id here — check `cargo tauri dev`'s console for the exact permission it's asking for."
+  "permissions": ["core:default", "core:window:allow-show", "core:window:allow-set-focus", "opener:default"],
+  "_comment": "App-level #[tauri::command] functions registered via invoke_handler (get_lan_info, start_google_signin) are callable under core:default in current Tauri v2 releases. If a future version tightens this, add its specific permission id here — check `cargo tauri dev`'s console for the exact permission it's asking for. opener:default is here for tauri-plugin-opener, used internally by start_google_signin to open the system browser."
 }

@@ -23,6 +23,8 @@ use std::{
 };
 use tokio::sync::mpsc;
 
+use crate::oauth::{oauth_callback_handler, OAuthState};
+
 type PeerId = String;
 type Code = String;
 type RoomMember = (String /* name */, mpsc::UnboundedSender<String>);
@@ -63,12 +65,18 @@ enum ServerMessage {
     Signal { from_peer_id: String, kind: String, data: serde_json::Value },
 }
 
-pub async fn serve(port: u16) {
-    let state = RelayState::default();
-    let router = Router::new()
+pub async fn serve(port: u16, oauth_state: OAuthState) {
+    let relay_state = RelayState::default();
+    let pairing_router = Router::new()
         .route("/health", get(|| async { "ok" }))
         .route("/pair/:code", get(pair_handler))
-        .with_state(state);
+        .with_state(relay_state);
+
+    let oauth_router = Router::new()
+        .route("/oauth/callback", get(oauth_callback_handler))
+        .with_state(oauth_state);
+
+    let router = pairing_router.merge(oauth_router);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     match tokio::net::TcpListener::bind(addr).await {

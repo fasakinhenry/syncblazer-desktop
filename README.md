@@ -68,6 +68,16 @@ Unsigned installers work, but trigger OS warnings ("Unknown publisher" / "uniden
 - **macOS**: requires a paid [Apple Developer Program](https://developer.apple.com/programs/) membership ($99/yr), a Developer ID Application certificate, and separately **notarization** (submitting the build to Apple's automated scan). A free Apple ID is not enough — notarization needs the paid membership. Without it, the app shows as "unverified developer" indefinitely, not just once.
 - **Linux**: no equivalent gatekeeping outside package-manager ecosystems.
 
+## Google sign-in
+
+Google's popup-based sign-in doesn't work inside an embedded webview (WebView2 blocks the cross-origin storage it needs, and Google generally distrusts embedded webviews for auth). So this app opens the real system browser instead, via [PKCE](https://datatracker.ietf.org/doc/html/rfc7636) — no client secret is stored or transmitted anywhere; see `src-tauri/src/oauth.rs`.
+
+This needs its own **separate** Google OAuth client (type: **Desktop app**, not Web application) — create one at [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials) in the same project as the website's existing client. Only the Client ID matters (not the secret Google also generates — it's unused by this flow).
+
+To test locally: add `VITE_GOOGLE_DESKTOP_CLIENT_ID=<that client id>` to `../frontend/.env`, and `GOOGLE_DESKTOP_CLIENT_ID=<same id>` to `../backend/.env`, then restart both `cargo tauri dev` and the backend.
+
+For release builds: set the `VITE_GOOGLE_DESKTOP_CLIENT_ID` repository variable here (same place as `VITE_API_URL` etc.), and `GOOGLE_DESKTOP_CLIENT_ID` on the backend's production host (Render).
+
 ## Known limitation worth knowing about
 
 `local_ip_address::local_ip()` picks *a* local network interface automatically — on a machine with several active interfaces at once (Wi-Fi + Ethernet + a VPN adapter, say), it doesn't always guess the one the phone is actually on. If pairing fails on a machine like that, the fix is checking the actual IP shown in the app against `ipconfig`/`ifconfig` output — a manual interface picker is a reasonable follow-up if this turns out to matter in practice.

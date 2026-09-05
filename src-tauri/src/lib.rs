@@ -9,8 +9,10 @@
 // mirroring the same shape as the cloud "Quick Connect" relay
 // (backend/src/sockets/quickPair.ts) so the shared frontend code can treat
 // both the same way.
+mod oauth;
 mod relay;
 
+use oauth::OAuthState;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
@@ -31,8 +33,11 @@ fn get_lan_info() -> Result<serde_json::Value, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            tauri::async_runtime::spawn(relay::serve(LAN_RELAY_PORT));
+            let oauth_state = OAuthState::default();
+            app.manage(oauth_state.clone());
+            tauri::async_runtime::spawn(relay::serve(LAN_RELAY_PORT, oauth_state));
 
             // Closing the window shouldn't kill the relay — the whole point
             // is that it keeps running so the phone can reach it. Hide
@@ -71,7 +76,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_lan_info])
+        .invoke_handler(tauri::generate_handler![get_lan_info, oauth::start_google_signin])
         .run(tauri::generate_context!())
         .expect("error while running SyncBlaze desktop");
 }

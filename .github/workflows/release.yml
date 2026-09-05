@@ -75,6 +75,10 @@ jobs:
           VITE_API_URL: ${{ vars.VITE_API_URL }}
           VITE_SOCKET_URL: ${{ vars.VITE_SOCKET_URL }}
           VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+          # The desktop app's own "Desktop app" type OAuth client (PKCE,
+          # system-browser flow) — distinct from VITE_GOOGLE_CLIENT_ID above,
+          # which is the website's "Web application" client.
+          VITE_GOOGLE_DESKTOP_CLIENT_ID: ${{ vars.VITE_GOOGLE_DESKTOP_CLIENT_ID }}
         with:
           projectPath: desktop
           tagName: ${{ github.ref_name }}
