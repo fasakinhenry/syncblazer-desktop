@@ -67,6 +67,14 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # These get baked into the bundled frontend at build time (Vite
+          # reads any VITE_-prefixed env var, .env file or not) — without
+          # them the packaged app falls back to localhost:4000, which
+          # doesn't exist on whoever installs it. Values live in this repo's
+          # Settings -> Secrets and variables -> Actions -> Variables.
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          VITE_SOCKET_URL: ${{ vars.VITE_SOCKET_URL }}
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
         with:
           projectPath: desktop
           tagName: ${{ github.ref_name }}
