@@ -27,7 +27,15 @@ pub const LAN_RELAY_PORT: u16 = 47811;
 #[tauri::command]
 fn get_lan_info() -> Result<serde_json::Value, String> {
     let ip = local_ip_address::local_ip().map_err(|e| e.to_string())?;
-    Ok(serde_json::json!({ "ip": ip.to_string(), "port": LAN_RELAY_PORT }))
+    // Hostname is cosmetic only (shown on the pairing screen so it reads as
+    // "connecting to Henry's Laptop" instead of a bare IP) — if it's not
+    // available for some reason, fall back to a generic label rather than
+    // failing the whole command over it.
+    let hostname = hostname::get()
+        .ok()
+        .and_then(|h| h.into_string().ok())
+        .unwrap_or_else(|| "This computer".to_string());
+    Ok(serde_json::json!({ "ip": ip.to_string(), "port": LAN_RELAY_PORT, "hostname": hostname }))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

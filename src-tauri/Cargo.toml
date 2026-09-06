@@ -21,6 +21,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "net", "sync", "macros",
 futures-util = "0.3"
 local-ip-address = "0.6"
 nanoid = "0.4"
+hostname = "0.4"
 # Google sign-in (PKCE, system-browser flow — see src/oauth.rs)
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 sha2 = "0.10"
