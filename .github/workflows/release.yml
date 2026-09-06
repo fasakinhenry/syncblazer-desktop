@@ -87,6 +87,6 @@ jobs:
           projectPath: desktop
           tagName: ${{ github.ref_name }}
           releaseName: "SyncBlaze Desktop ${{ github.ref_name }}"
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
