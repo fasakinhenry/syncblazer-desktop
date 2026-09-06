@@ -34,16 +34,25 @@ struct RelayState {
     rooms: Arc<Mutex<HashMap<Code, HashMap<PeerId, RoomMember>>>>,
 }
 
+// NOTE: `rename_all` on the enum only renames the variant tag itself (e.g.
+// Join -> "join") — it does NOT cascade into each variant's own fields,
+// contrary to what the previous version of this file assumed. That silently
+// broke every single join/signal message from day one (Deserialize failed
+// with "missing field `peer_id`" against real camelCase JSON), which is why
+// hosting never actually worked regardless of network path. Explicit
+// per-field #[serde(rename = "...")] removes any ambiguity about this.
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 enum ClientMessage {
     Join {
         code: String,
+        #[serde(rename = "peerId")]
         peer_id: String,
         name: String,
     },
     Signal {
         code: String,
+        #[serde(rename = "targetPeerId")]
         target_peer_id: Option<String>,
         kind: String,
         data: serde_json::Value,
@@ -52,6 +61,7 @@ enum ClientMessage {
 
 #[derive(Serialize, Clone)]
 struct PeerInfo {
+    #[serde(rename = "peerId")]
     peer_id: String,
     name: String,
 }
@@ -60,9 +70,21 @@ struct PeerInfo {
 #[serde(tag = "type", rename_all = "camelCase")]
 enum ServerMessage {
     Joined { peers: Vec<PeerInfo> },
-    PeerJoined { peer_id: String, name: String },
-    PeerLeft { peer_id: String },
-    Signal { from_peer_id: String, kind: String, data: serde_json::Value },
+    PeerJoined {
+        #[serde(rename = "peerId")]
+        peer_id: String,
+        name: String,
+    },
+    PeerLeft {
+        #[serde(rename = "peerId")]
+        peer_id: String,
+    },
+    Signal {
+        #[serde(rename = "fromPeerId")]
+        from_peer_id: String,
+        kind: String,
+        data: serde_json::Value,
+    },
 }
 
 pub async fn serve(port: u16, oauth_state: OAuthState) {
@@ -109,7 +131,16 @@ async fn handle_socket(socket: WebSocket, state: RelayState) {
 
     while let Some(Ok(msg)) = ws_receiver.next().await {
         let Message::Text(text) = msg else { continue };
-        let Ok(parsed) = serde_json::from_str::<ClientMessage>(&text) else { continue };
+        let parsed = match serde_json::from_str::<ClientMessage>(&text) {
+            Ok(p) => p,
+            Err(e) => {
+                // Worth keeping visible (stderr only, no UI impact) — a
+                // silent `continue` here is exactly what hid this same bug
+                // undetected until it was tracked down by hand.
+                eprintln!("SyncBlaze relay: failed to parse {text:?}: {e}");
+                continue;
+            }
+        };
 
         match parsed {
             ClientMessage::Join { code, peer_id, name } => {
